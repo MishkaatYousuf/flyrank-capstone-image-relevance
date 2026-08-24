@@ -1,0 +1,25 @@
+# Evaluator manifest — see capstone brief §11.
+# Phase 1+2 status: seed + ingest are runnable. `base_url` / review endpoints
+# arrive in Phase 4 once the FastAPI review layer exists — left as TODO
+# below rather than faked.
+
+name: flyrank-capstone-image-relevance
+phase_status: "Phase 1 (design) + Phase 2 (vision ingestion) complete"
+
+setup: pip install -r requirements.txt
+
+seed: python scripts/download_images.py
+
+run: python scripts/run_ingestion.py
+
+test: pytest -q
+
+# TODO (Phase 4): stand up the FastAPI review app and fill these in.
+# base_url: http://localhost:8000
+# endpoints:
+#   - GET  /posts/:id/images     (Phase 3)
+#   - POST /suggestions/:id/review   (Phase 4)
+
+env_required:
+  - GEMINI_API_KEY        # or set VISION_PROVIDER=ollama to skip this
+  - PEXELS_API_KEY        # optional if you seed data/images/ manually

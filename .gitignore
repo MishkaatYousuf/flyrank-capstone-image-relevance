@@ -1,0 +1,27 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# database
+*.db
+*.sqlite3
+
+# downloaded corpus (large binary files — keep the download script instead)
+data/images/**/*.jpg
+data/images/**/*.jpeg
+data/images/**/*.png
+!data/images/.gitkeep
+
+# logs
+*.log
+cost_log.jsonl
+
+# os
+.DS_Store

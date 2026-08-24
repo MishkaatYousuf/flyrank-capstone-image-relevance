@@ -1,0 +1,17 @@
+# --- Phase 1 + 2 dependencies (all free/open-source) ---
+google-genai>=1.0.0        # Gemini API client (free tier, no card)
+pydantic>=2.6              # schema validation for vision output
+SQLAlchemy>=2.0            # ORM + SQLite (no server needed)
+python-dotenv>=1.0         # load .env
+requests>=2.31             # Pexels download script
+tenacity>=8.2              # retry/backoff for flaky API calls
+Pillow>=10.0                # basic image validation (is it really an image?)
+
+# --- testing ---
+pytest>=8.0
+
+# --- Phase 3/4 (not needed yet, listed here so the file matches the final
+#     capstone.yaml `run:`/`test:` commands later — safe to leave uninstalled
+#     until you reach those phases) ---
+# fastapi
+# uvicorn
