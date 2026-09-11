@@ -13,20 +13,22 @@ and retries — it never reaches the database as a "tagged" result.
 ```
 # TODO
 After running: $ pytest tests/test_schema_validation.py -v, we see:
+```
 ![alt text](image.png)
 
-```
+
 
 ## Low-confidence classifications are flagged instead of accepted.
 
 `app/batch.py::process_image` — `if tags.is_low_confidence(threshold): status = FLAGGED else TAGGED`.
 
 ```
-# TODO: paste one FLAGGED log line from my own run, e.g.:
-![alt text](image-1.png)
+# TODO: pasted one FLAGGED log line from my own run, e.g.:
 [7/50] classifying deer_04.jpg ...
     -> FLAGGED (low confidence) subject='deer' confidence=0.52
 ```
+![alt text](image-1.png)
+
 
 ## Images are processed through a batch background job with retries.
 
@@ -46,9 +48,10 @@ and `cost_log.jsonl`.
 
 ```
 # TODO: pasting one real line from cost_log.jsonl, e.g.:
+```
 ![alt text](image-2.png)
 Contains: {"id": "9144c436-9826-4eaa-ad9a-e3276c4a0cc8", "call_type": "vision", "provider": "gemini", "model": "gemini-3.6-flash", "input_tokens": 1289, "output_tokens": 88, "estimated_cost_usd": 0.00123075, "actual_billed_usd": 0.0, "succeeded": true, "attempt": 1, "image_id": "85a1d003-69d0-4b65-85b1-32b5975c9885", "post_id": null, "timestamp": "2026-08-26T09:24:44.030148+00:00"}
-```
+
 
 ---
 
