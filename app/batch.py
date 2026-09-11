@@ -163,10 +163,23 @@ def process_image(session: Session, image: Image, image_path: Path) -> ImageStat
     return image.status
 
 
-def run_batch(session: Session, *, images_dir: Path | None = None, rerun: bool = False) -> BatchSummary:
+def run_batch(
+    session: Session,
+    *,
+    images_dir: Path | None = None,
+    rerun: bool = False,
+    retry_errors_only: bool = False,
+) -> BatchSummary:
     """
-    Runs the full batch job. Set rerun=True to reprocess images that are
-    already TAGGED/FLAGGED/ERROR (useful after changing the prompt/threshold).
+    Runs the batch job.
+
+      - default: only processes images still PENDING (new images).
+      - rerun=True: reprocesses EVERY image regardless of status — spends
+        quota on already-successful images too, use after a prompt/threshold
+        change you want reflected everywhere.
+      - retry_errors_only=True: only reprocesses PENDING + ERROR images,
+        leaving TAGGED/FLAGGED alone — the quota-friendly way to pick back
+        up after hitting a daily rate limit mid-run.
     """
     images_dir = images_dir or settings.images_dir
     paths = discover_images(images_dir)
@@ -179,7 +192,12 @@ def run_batch(session: Session, *, images_dir: Path | None = None, rerun: bool =
     for i, path in enumerate(paths, start=1):
         image = _upsert_pending_image(session, path, images_dir)
 
-        if not rerun and image.status != ImageStatus.PENDING:
+        should_process = (
+            rerun
+            or image.status == ImageStatus.PENDING
+            or (retry_errors_only and image.status == ImageStatus.ERROR)
+        )
+        if not should_process:
             summary.skipped_already_done += 1
             logger.info("[%d/%d] %s already %s — skipping", i, len(paths), path.name, image.status.value)
             continue

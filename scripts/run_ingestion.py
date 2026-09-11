@@ -34,7 +34,14 @@ def print_summary(session) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Phase 2 vision ingestion batch job.")
-    parser.add_argument("--rerun", action="store_true", help="Reprocess already-tagged images too.")
+    parser.add_argument("--rerun", action="store_true", help="Reprocess EVERY image, including already-tagged ones.")
+    parser.add_argument(
+        "--retry-errors",
+        action="store_true",
+        help="Only reprocess PENDING + ERROR images (skip TAGGED/FLAGGED). "
+        "Use this to resume after hitting a rate limit / quota mid-run without "
+        "re-spending quota on images that already succeeded.",
+    )
     parser.add_argument("--summary", action="store_true", help="Just print DB status counts and exit.")
     args = parser.parse_args()
 
@@ -45,7 +52,7 @@ def main() -> int:
             print_summary(session)
             return 0
 
-        summary = run_batch(session, rerun=args.rerun)
+        summary = run_batch(session, rerun=args.rerun, retry_errors_only=args.retry_errors)
 
     print("\n=== Batch run complete ===")
     print(json.dumps(summary.as_dict(), indent=2))

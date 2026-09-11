@@ -81,5 +81,12 @@ GEMINI_PRICING_USD_PER_1M_TOKENS = {
     "gemini-2.5-flash": {"input": 0.30, "output": 2.50},
     "gemini-2.5-flash-lite": {"input": 0.10, "output": 0.40},
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
+    # Gemini 3.x family — 2.5 was still listed as free-tier by Google's docs
+    # when this was written, but availability changes fast; always check
+    # https://ai.google.dev/gemini-api/docs/models for the current live list
+    # before assuming a model name still works.
+    "gemini-3.6-flash": {"input": 0.75, "output": 3.00},
+    "gemini-3.5-flash": {"input": 0.75, "output": 3.00},
+    "gemini-3.1-flash-lite": {"input": 0.10, "output": 0.40},
 }
 DEFAULT_PRICING = {"input": 0.30, "output": 2.50}

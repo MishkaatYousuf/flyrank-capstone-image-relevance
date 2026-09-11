@@ -125,3 +125,47 @@ def test_category_hint_comes_from_folder_name(db_session, fake_image_file):
     images_dir = fake_image_file.parent.parent  # fake_image_file is .../animal/red_fox_01.jpg
     image = batch_mod._upsert_pending_image(db_session, fake_image_file, images_dir)
     assert image.source_category_hint == "animal"
+
+
+def test_retry_errors_only_skips_tagged_but_reprocesses_errors(
+    db_session, patched_settings, tmp_path, monkeypatch
+):
+    """
+    Resuming after a quota hit (--retry-errors) should NOT re-spend quota on
+    images that already succeeded, but SHOULD retry the ones that errored.
+    """
+    animal_dir = tmp_path / "animal"
+    animal_dir.mkdir()
+    already_tagged = animal_dir / "wolf_01.jpg"
+    already_tagged.write_bytes(b"fake")
+    previously_errored = animal_dir / "bear_01.jpg"
+    previously_errored.write_bytes(b"fake")
+
+    # Seed one TAGGED and one ERROR image directly, as if from a prior run.
+    img1 = batch_mod._upsert_pending_image(db_session, already_tagged, tmp_path)
+    img1.status = ImageStatus.TAGGED
+    img1.subject, img1.confidence = "gray wolf", 0.91
+    img2 = batch_mod._upsert_pending_image(db_session, previously_errored, tmp_path)
+    img2.status = ImageStatus.ERROR
+    img2.error_message = "previous run: model returned malformed JSON"
+    db_session.commit()
+
+    calls = []
+
+    def track_and_succeed(path, attempt=1):
+        calls.append(path.name)
+        return _make_result(0.95, attempt)
+
+    monkeypatch.setattr(batch_mod, "classify_image", track_and_succeed)
+
+    summary = batch_mod.run_batch(db_session, images_dir=tmp_path, retry_errors_only=True)
+
+    # Only the previously-errored image should have triggered a real vision call.
+    assert calls == ["bear_01.jpg"]
+    assert summary.skipped_already_done == 1
+    assert summary.tagged == 1
+
+    db_session.refresh(img1)
+    db_session.refresh(img2)
+    assert img1.status == ImageStatus.TAGGED  # untouched
+    assert img2.status == ImageStatus.TAGGED  # recovered from ERROR

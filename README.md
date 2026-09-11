@@ -79,6 +79,29 @@ python scripts/run_ingestion.py
 python scripts/run_ingestion.py --summary
 ```
 
+### Resuming after a rate limit / quota hit
+
+The Gemini free tier has a daily request cap (RPD) that resets at
+**midnight Pacific Time**. If a run stops mid-way with a 429 "quota
+exceeded" error, don't just rerun — plain `python scripts/run_ingestion.py`
+already skips anything not still `pending`, but images that failed and
+landed in `error` status will keep being skipped forever unless you tell it
+to retry them. Use:
+
+```bash
+python scripts/run_ingestion.py --retry-errors
+```
+
+This reprocesses only `pending` + `error` images and leaves anything
+already `tagged`/`flagged` untouched — so you don't re-spend quota on
+images that already succeeded. (`--rerun` reprocesses *everything*,
+including already-successful images — only use that after a prompt or
+threshold change you want reflected across the whole corpus.)
+
+If you switch models mid-project (e.g. a free-tier model gets deprecated),
+update `GEMINI_MODEL` in `.env` first, then use `--retry-errors` to pick up
+only the images that failed under the old model.
+
 Example output:
 
 ```
