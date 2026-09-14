@@ -36,19 +36,26 @@ def fast_test_settings():
         low_confidence_threshold=0.6,
         vision_retry_backoff_seconds=0.0,
         vision_provider="gemini",
-        gemini_model="gemini-2.5-flash",
+        gemini_model="gemini-3.6-flash",
+        max_embedding_retries=2,
+        embedding_retry_backoff_seconds=0.0,
+        similarity_threshold=0.55,
+        match_top_k=5,
     )
 
 
 @pytest.fixture()
 def patched_settings(monkeypatch, fast_test_settings):
-    """Point app.batch, app.vision, app.cost_tracker at the fast test settings."""
+    """Point app.batch, app.matching, app.vision, app.cost_tracker at the fast test settings."""
     import app.batch as batch_mod
     import app.cost_tracker as cost_mod
+    import app.matching as matching_mod
 
     monkeypatch.setattr(batch_mod, "settings", fast_test_settings)
     monkeypatch.setattr(cost_mod, "settings", fast_test_settings)
+    monkeypatch.setattr(matching_mod, "settings", fast_test_settings)
     monkeypatch.setattr(batch_mod.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(matching_mod.time, "sleep", lambda *_: None)
     return fast_test_settings
 
 

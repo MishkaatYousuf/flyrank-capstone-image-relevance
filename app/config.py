@@ -33,10 +33,12 @@ class Settings:
 
     # Gemini
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    gemini_embedding_model: str = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
 
     # Ollama (free local fallback — no API key required)
     ollama_model: str = os.getenv("OLLAMA_MODEL", "llava")
+    ollama_embedding_model: str = os.getenv("OLLAMA_EMBEDDING_MODEL", "all-minilm")
     ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
     # Pexels (free image corpus)
@@ -55,6 +57,18 @@ class Settings:
     vision_retry_backoff_seconds: float = field(
         default_factory=lambda: _get_float("VISION_RETRY_BACKOFF_SECONDS", 2.0)
     )
+    max_embedding_retries: int = field(
+        default_factory=lambda: _get_int("MAX_EMBEDDING_RETRIES", 3)
+    )
+    embedding_retry_backoff_seconds: float = field(
+        default_factory=lambda: _get_float("EMBEDDING_RETRY_BACKOFF_SECONDS", 2.0)
+    )
+
+    # Phase 3: matching + mismatch guard tuning
+    similarity_threshold: float = field(
+        default_factory=lambda: _get_float("SIMILARITY_THRESHOLD", 0.55)
+    )
+    match_top_k: int = field(default_factory=lambda: _get_int("MATCH_TOP_K", 5))
 
     # Paths
     root_dir: Path = _ROOT
@@ -88,5 +102,8 @@ GEMINI_PRICING_USD_PER_1M_TOKENS = {
     "gemini-3.6-flash": {"input": 0.75, "output": 3.00},
     "gemini-3.5-flash": {"input": 0.75, "output": 3.00},
     "gemini-3.1-flash-lite": {"input": 0.10, "output": 0.40},
+    # Embeddings: input-only cost (no output tokens generated).
+    "gemini-embedding-001": {"input": 0.15, "output": 0.0},
+    "text-embedding-004": {"input": 0.00, "output": 0.0},  # legacy, was free
 }
 DEFAULT_PRICING = {"input": 0.30, "output": 2.50}
