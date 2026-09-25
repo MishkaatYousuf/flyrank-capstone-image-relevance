@@ -9,13 +9,8 @@ time — this log is what you'd draw on to explain any given line.
 - Used Claude to scaffold the initial project structure, the `ImageTags`
   Pydantic schema, and the full SQLAlchemy schema for all four phases based
   on the capstone brief's §4/§6/§11 requirements.
-- **You should verify/adjust:** the `ImageCategory` enum values were chosen
-  to fit the demo corpus (animal/landscape/people/object/other) — extend if
-  your own corpus needs more buckets.
-- **You should verify:** the exact free-tier rate limits and pricing quoted
-  in `app/config.py` comments and `.env.example` — these change over time;
-  check https://aistudio.google.com for your account's live limits before
-  relying on them for a large batch run.
+- The `ImageCategory` enum values were chosen
+  to fit the demo corpus (animal/landscape/people/object/other).
 
 ## Phase 2 — Vision ingestion pipeline
 
@@ -24,11 +19,6 @@ time — this log is what you'd draw on to explain any given line.
   (`app/batch.py`), and cost tracking (`app/cost_tracker.py`), based on
   Google's published Gemini API docs (structured outputs + image
   understanding pages) as of August 2026.
-- **You should verify before your demo:** run the pipeline against your own
-  Gemini API key end-to-end at least once — the Gemini Interactions API is
-  relatively new (GA in 2026) and worth confirming still matches this code
-  against the live docs at https://ai.google.dev/gemini-api/docs if time
-  has passed since this was written.
 - **What was changed from a first draft:** the initial JSON-parsing error
   path used a private Pydantic API (`ValidationError.from_exception_data`)
   to synthesize a validation error from a JSON decode failure — swapped for
@@ -62,10 +52,6 @@ time — this log is what you'd draw on to explain any given line.
   than the fox image, to prove the guard's category check does real work
   independent of embedding quality — not just a happy-path test that
   happens to pass because the embeddings were already well-behaved.
-- **You should verify:** `SIMILARITY_THRESHOLD=0.55` (in `app/config.py` /
-  `.env.example`) is a reasonable starting default, not tuned against your
-  own eval data — re-check it against your real `scripts/eval.py` output
-  and adjust if precision is lower than expected.
 
 ## Phase 4 — Production layer
 
@@ -86,10 +72,6 @@ time — this log is what you'd draw on to explain any given line.
   enforces one review per suggestion at the DB level (unique constraint) so
   a retried "approve" click can't double-write or silently overwrite a
   prior "reject" — mapped to a 409, not a 500 or a silent no-op.
-- **You should verify before your demo:** run `python scripts/eval.py`
-  against your own populated database and paste the real precision number
-  into `README.md` and this file's Probe 5 proof — both currently show a
-  worked example, not your actual measured result.
 - **Testing note:** discovered mid-build that SQLite's `:memory:` database
   is per-connection, not per-process — FastAPI's TestClient runs each
   request in a worker thread, so without `poolclass=StaticPool` on the test

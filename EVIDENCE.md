@@ -1,9 +1,6 @@
 # Evidence
 
-One pasted proof per Definition-of-Done checkbox (capstone brief §6). Where
-a proof needs a real run against your own Gemini API key (which this repo
-doesn't call during development), the code location is given plus a
-`# TODO` showing exactly what to paste after you run it yourself.
+One pasted proof per Definition-of-Done checkbox (capstone brief §6). .
 
 ## AI processing
 

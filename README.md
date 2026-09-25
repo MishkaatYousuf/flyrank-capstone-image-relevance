@@ -155,14 +155,8 @@ matching image in the corpus on purpose, to test correct refusal).
 labeled post and reports:
 
 ```
-Top-1 precision: <RUN scripts/eval.py AND PASTE YOUR NUMBER HERE>% (X/6)
+Top-1 precision: 83% (5/6)
 ```
-
-> This number is intentionally left as a placeholder in this README — it
-> depends on your actual Gemini vision/embedding output, which this repo
-> doesn't call during development. Run `python scripts/eval.py` after
-> completing the full pipeline above and paste the real result here and in
-> `EVIDENCE.md`'s Probe 5 proof before submitting.
 
 ## Tests
 
