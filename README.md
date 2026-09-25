@@ -1,44 +1,64 @@
 # AI Image Understanding & Content Matching Engine
 
 FlyRank Internship · Backend Track Capstone. Understands an image library,
-tags it automatically with a vision model, and (in later phases) matches
-each image to the right blog post — refusing to guess when nothing fits
-well enough.
+tags it automatically with a vision model, matches each image to the right
+blog post by meaning (not keywords), and refuses to guess when nothing fits
+well enough — with a Review API to approve, reject, and inspect why.
 
-**Status: Phase 1 (design) + Phase 2 (vision ingestion pipeline) complete.**
-Phase 3 (embeddings + matching + mismatch guard) and Phase 4 (review API +
-eval + tests-beyond-schema) are the next steps — see `DESIGN.md` §5 for
-where they plug in.
+**Status: all four phases complete.** Design → vision ingestion → semantic
+matching + mismatch guard → Review API + eval. See `DESIGN.md` for the
+original design doc and `BUILDLOG.md` for an honest account of where AI
+helped at each phase.
 
-## What's implemented right now
+## What's implemented
 
-- ✅ Image metadata schema, Pydantic-validated (`app/schemas.py`)
-- ✅ Matching strategy + guard rules **designed** (`DESIGN.md` §3) — not yet
-  implemented (Phase 3)
-- ✅ Full database schema for all phases (`app/models.py`), SQLite, $0
+- ✅ Image metadata schema, Pydantic-validated (`app/schemas.py`) — invalid
+  vision output is retried, never trusted
+- ✅ Full database schema for all phases (`app/models.py`), SQLite, $0, no Docker
 - ✅ ~50-image dataset via a free Pexels download script
-- ✅ Vision processing with structured-output validation against the schema
-  — invalid responses are retried, never trusted
-- ✅ Batch background job with retries + exponential backoff
-- ✅ Per-call cost tracking (even though the free tier bills $0)
-- ✅ Low-confidence results flagged, not silently accepted
+- ✅ Vision processing batch job with retries, exponential backoff, and
+  low-confidence flagging (`app/vision.py`, `app/batch.py`)
+- ✅ Per-call cost tracking for every vision AND embedding call, even
+  though the free tier bills $0 (`app/cost_tracker.py`)
+- ✅ Embeddings for image captions + post text, cosine-similarity ranking
+  (`app/embeddings.py`, `app/matching.py`)
+- ✅ The mismatch guard: confidence gate → tag/category check → similarity
+  threshold, each rejection with a human-readable reason (`app/guard.py`)
+- ✅ A Review API (FastAPI): ranked suggestions per post, approve/reject,
+  inspect why, idempotent by design (`app/main.py`, `app/review.py`)
+- ✅ A labeled eval set measuring top-1 precision (`data/eval_set.json`,
+  `scripts/eval.py`)
+- ✅ 57 automated tests: schema validation, batch retry/flag/error states,
+  the mismatch guard (including an adversarial case), the matching
+  pipeline, the review workflow, and the full HTTP API — all mocked, no
+  network, no cost, fully deterministic
 
 ## Architecture
 
 ```
 Images ─(batch job)─► Vision Model ─► {tags, caption, confidence} ─► image_metadata (SQLite)
-                                                                    ─► api_call_log (cost)
+         (app/batch.py, app/vision.py)                             ─► api_call_log (cost)
+                            │
+                            └─► embed(caption) ──────────────────────► image_vectors
+Posts ──────────────────────────► embed(post text) ───────────────────► post_vectors
+         (app/embeddings.py, app/matching.py)                       ─► api_call_log (cost)
 
-           [Phase 3, not yet built]
-           └─► embed(caption) ─► image_vectors
-Posts  ──────────────────────► embed(post text) ─► post_vectors
-GET /posts/:id/images
-  └─► Similarity Ranking (image_vectors × post_vector)
-  └─► Mismatch Guard (tags + threshold + confidence)
-      ├─► Suggested image (ranked, explained)
-      └─► "No good match" + explanation
-  └─► Review API: approve / reject      [Phase 4, not yet built]
+GET /posts/:id/images                              (app/main.py, app/review.py)
+  └─► Similarity Ranking — cosine(image_vectors, post_vector)        (app/matching.py)
+  └─► Mismatch Guard — tags + threshold + confidence, ranked order   (app/guard.py)
+      ├─► Suggested image (ranked, explained)     → status="matched"
+      └─► "No confident match" + explanation       → status="no_confident_match"
+  └─► POST /suggestions/:id/review — approve / reject                (app/review.py)
+  └─► GET  /suggestions/:id — inspect why a candidate was picked/refused
+  └─► GET  /costs/summary — Probe 6: every AI call attributed with a cost
 ```
+
+Layering (why each piece exists where it does — see `DESIGN.md` §5 for the
+full rationale): `app/main.py` is the only file that knows about HTTP;
+`app/review.py` and `app/matching.py` hold the actual logic and know
+nothing about FastAPI; `app/vision.py` and `app/embeddings.py` are the only
+files that know about Gemini vs. Ollama. Swap any one layer without
+touching the others.
 
 ## Setup (clean machine)
 
@@ -61,96 +81,133 @@ No credit card is required for either key.
 ### Local-only alternative (no API keys at all)
 
 Set `VISION_PROVIDER=ollama` in `.env`, install [Ollama](https://ollama.com),
-then `ollama pull llava`. The pipeline runs 100% offline with no key. For
-the image corpus, skip `download_images.py` and manually drop licensed-free
-images into `data/images/<category-name>/`.
+then `ollama pull llava` (vision) and `ollama pull all-minilm` (embeddings).
+The whole pipeline runs 100% offline with no key. For the image corpus,
+skip `download_images.py` and manually drop licensed-free images into
+`data/images/<category-name>/`.
 
-## Run (seed → ingest)
+## Run — full pipeline
 
 ```bash
 # 1. Build the ~50-image demo corpus (free, no card)
 python scripts/download_images.py
 
-# 2. Run the Phase 2 vision batch job — tags every image, validates against
-#    the schema, retries on failure, flags low-confidence results, logs cost
+# 2. Tag every image: vision model, schema validation, retries, cost log
 python scripts/run_ingestion.py
+python scripts/run_ingestion.py --summary       # check status any time
 
-# Check status any time:
-python scripts/run_ingestion.py --summary
+# 3. Seed posts, embed images + posts, rank + guard every post
+python scripts/run_matching.py
+
+# 4. Measure quality against the labeled eval set
+python scripts/eval.py
+
+# 5. Start the Review API
+uvicorn app.main:app --reload
+# -> interactive docs at http://127.0.0.1:8000/docs
 ```
 
 ### Resuming after a rate limit / quota hit
 
 The Gemini free tier has a daily request cap (RPD) that resets at
-**midnight Pacific Time**. If a run stops mid-way with a 429 "quota
-exceeded" error, don't just rerun — plain `python scripts/run_ingestion.py`
-already skips anything not still `pending`, but images that failed and
-landed in `error` status will keep being skipped forever unless you tell it
-to retry them. Use:
+**midnight Pacific Time**. `run_ingestion.py` and `run_matching.py`'s embed
+step both skip anything already processed, but images/posts that failed
+stay in an error state until retried explicitly:
 
 ```bash
-python scripts/run_ingestion.py --retry-errors
+python scripts/run_ingestion.py --retry-errors   # only re-tags images that errored
+python scripts/run_matching.py --embed-only       # only embeds what's still missing
 ```
 
-This reprocesses only `pending` + `error` images and leaves anything
-already `tagged`/`flagged` untouched — so you don't re-spend quota on
-images that already succeeded. (`--rerun` reprocesses *everything*,
-including already-successful images — only use that after a prompt or
-threshold change you want reflected across the whole corpus.)
+`--rerun` on `run_ingestion.py` reprocesses _everything_, including
+already-successful images — only use that after a prompt/threshold change
+you want reflected across the whole corpus.
 
-If you switch models mid-project (e.g. a free-tier model gets deprecated),
-update `GEMINI_MODEL` in `.env` first, then use `--retry-errors` to pick up
-only the images that failed under the old model.
+## The Review API
 
-Example output:
+| Method | Path                      | What it does                                                                         |
+| ------ | ------------------------- | ------------------------------------------------------------------------------------ |
+| GET    | `/health`                 | liveness check                                                                       |
+| GET    | `/posts`                  | list all posts                                                                       |
+| GET    | `/images?status=flagged`  | list images, optionally filtered by status                                           |
+| GET    | `/posts/:id/images`       | ranked suggestions + guard verdicts for a post (`:id` accepts a slug or a UUID)      |
+| GET    | `/suggestions/:id`        | inspect one candidate: image, score, guard reason, review status                     |
+| POST   | `/suggestions/:id/review` | `{"decision": "approve"\|"reject", "reviewer"?, "notes"?}` — 409 if already reviewed |
+| GET    | `/costs/summary`          | aggregated AI call cost log                                                          |
 
-```
-[1/50] classifying red_fox_01.jpg ...
-    -> TAGGED  subject='red fox' category='animal' confidence=0.94
-[2/50] classifying wolf_03.jpg ...
-    -> TAGGED  subject='gray wolf' category='animal' confidence=0.89
-...
-=== Batch run complete ===
-{
-  "total": 50,
-  "tagged": 46,
-  "flagged": 3,
-  "errored": 1,
-  "skipped_already_done": 0,
-  "total_estimated_cost_usd": 0.000812
-}
+Example: force-checking the wolf-on-a-fox-post scenario from the terminal
+without touching a browser:
+
+```bash
+curl "http://127.0.0.1:8000/posts/the-secret-life-of-red-foxes/images" | python -m json.tool
 ```
 
-`total_estimated_cost_usd` is a nominal estimate at public per-token
-pricing for visibility/discipline — the actual bill on the Gemini free tier
-is $0. See `cost_log.jsonl` for a line-by-line log of every call.
+The response's `candidates` array includes every ranked image — including
+a rejected wolf, if one is in your corpus — each with its own
+`guard_status` and `guard_reason`.
+
+## Evaluation — top-1 precision
+
+`data/eval_set.json` labels each seed post with its correct animal subject
+(or `null` for the one post — "Mountain Lakes at Sunrise" — that has no
+matching image in the corpus on purpose, to test correct refusal).
+`scripts/eval.py` runs the full matching + guard pipeline against each
+labeled post and reports:
+
+```
+Top-1 precision: <RUN scripts/eval.py AND PASTE YOUR NUMBER HERE>% (X/6)
+```
+
+> This number is intentionally left as a placeholder in this README — it
+> depends on your actual Gemini vision/embedding output, which this repo
+> doesn't call during development. Run `python scripts/eval.py` after
+> completing the full pipeline above and paste the real result here and in
+> `EVIDENCE.md`'s Probe 5 proof before submitting.
 
 ## Tests
 
 ```bash
-pytest
+pytest -q
 ```
 
-Covers: schema validation (rejects out-of-range confidence, missing
-fields, bad category), and the batch job's retry/flag/error state machine
-against a mocked vision provider (no API calls, no cost, deterministic).
+57 tests, all mocked (no network, no cost, fully deterministic):
+
+- `test_schema_validation.py` — the vision-output contract rejects invalid shapes
+- `test_batch.py` — retry/flag/error state machine, cost logging, quota-safe resume
+- `test_guard.py` — the mismatch guard's decision logic, including the wolf-on-a-fox-post case
+- `test_matching.py` — embedding storage + retries, similarity ranking, and an
+  **adversarial** version of the fox/wolf test where the wolf is given a
+  deliberately higher raw similarity score and the guard still rejects it
+- `test_review.py` — idempotent suggestion computation, 404/409 domain errors
+- `test_api.py` — the full HTTP API via FastAPI's TestClient, covering Probes 2-6
 
 ## Project structure
 
 See `DESIGN.md` §5 for the full layer sketch and rationale.
 
-## Limitations (honest, as of Phase 1+2)
+## Limitations (honest)
 
-- No matching, ranking, or mismatch guard yet — that's Phase 3. Right now
-  this repo only tags images; it does not yet suggest images for posts.
-- No review API or evaluation harness yet — that's Phase 4.
-- The Ollama local path is implemented but only lightly exercised — Gemini
-  free tier is the primary path this was developed against.
-- `data/posts.json` is a seed set for Phase 3/4 development; it is not
-  consumed by anything in Phase 1/2.
+- The similarity threshold (`SIMILARITY_THRESHOLD=0.55` in `.env.example`)
+  is a reasonable starting default, not one tuned against a large labeled
+  set — the 6-post eval set here is illustrative at the scope this
+  capstone calls for (§7), not a statistically rigorous validation.
+- The tag/category mismatch check in `app/guard.py` uses a small explicit
+  subject vocabulary (fox/wolf/dog/bear/deer + a few scientific-name
+  synonyms) rather than a general NLP subject extractor. That's
+  appropriate for the "few categories" scope in §7 and keeps every
+  rejection reason fully explainable and traceable to a specific rule
+  rather than an opaque model judgment — but it won't generalize to an
+  arbitrary corpus without extending `SUBJECT_SYNONYMS`/`KNOWN_SUBJECTS`.
+- The Ollama local path (vision + embeddings) is implemented and unit-testable but only lightly exercised end-to-end — Gemini free tier is the primary path this was developed against.
+- No frontend — per §7, the Review API + interactive `/docs` is the
+  reviewing interface. No admin table beyond what `/docs` renders.
+- `/images` and `/posts` have no pagination — fine at the ~50-image /
+  handful-of-posts scope this capstone targets; would need pagination
+  before growing much further.
 
 ## Free-tools promise
 
-Everything above runs at $0 with no credit card: Gemini Flash free tier
-(or fully local Ollama), Pexels free image API, SQLite, and open-source
-Python libraries only. See `.env.example` for every key involved.
+Everything above runs at $0 with no credit card: Gemini Flash + Gemini
+embeddings free tier (or fully local Ollama for both), Pexels free image
+API, SQLite, FastAPI, and open-source Python libraries only. See
+`.env.example` for every key involved.

@@ -1,25 +1,36 @@
 # Evaluator manifest — see capstone brief §11.
-# Phase 1+2 status: seed + ingest are runnable. `base_url` / review endpoints
-# arrive in Phase 4 once the FastAPI review layer exists — left as TODO
-# below rather than faked.
+# All four phases complete: ingestion, matching + mismatch guard, and the
+# Review API are all runnable per the steps below.
 
 name: flyrank-capstone-image-relevance
-phase_status: "Phase 1 (design) + Phase 2 (vision ingestion) complete"
+phase_status: "Phase 1-4 complete (design, vision pipeline, matching + guard, review API)"
 
 setup: pip install -r requirements.txt
 
-seed: python scripts/download_images.py
+# Full pipeline, in order. Each step is also runnable standalone — see README.md.
+seed: |
+  python scripts/download_images.py
+  python scripts/run_ingestion.py
+  python scripts/run_matching.py
 
-run: python scripts/run_ingestion.py
+# Starts the Review API that `base_url` below points at.
+run: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 test: pytest -q
 
-# TODO (Phase 4): stand up the FastAPI review app and fill these in.
-# base_url: http://localhost:8000
-# endpoints:
-#   - GET  /posts/:id/images     (Phase 3)
-#   - POST /suggestions/:id/review   (Phase 4)
+base_url: http://localhost:8000
+endpoints:
+  - GET  /health
+  - GET  /posts
+  - GET  /images?status=flagged
+  - GET  /posts/:id/images # Probes 2-4: ranked suggestions + guard verdicts; id accepts slug or UUID
+  - GET  /suggestions/:id # inspect why one candidate was selected/refused
+  - POST /suggestions/:id/review # {"decision": "approve"|"reject", "reviewer"?, "notes"?}
+  - GET  /costs/summary # Probe 6: per-call cost log, aggregated
+  - GET  /docs # interactive OpenAPI docs (auto-generated, free)
+
+eval: python scripts/eval.py
 
 env_required:
-  - GEMINI_API_KEY        # or set VISION_PROVIDER=ollama to skip this
-  - PEXELS_API_KEY        # optional if you seed data/images/ manually
+  - GEMINI_API_KEY # or set VISION_PROVIDER=ollama to skip this
+  - PEXELS_API_KEY # optional if you seed data/images/ manually

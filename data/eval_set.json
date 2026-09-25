@@ -1,0 +1,32 @@
+[
+  {
+    "post_slug": "the-secret-life-of-red-foxes",
+    "expected_subject": "fox",
+    "note": "Should surface a red fox image, not the visually-similar wolf."
+  },
+  {
+    "post_slug": "wolves-of-the-northern-forest",
+    "expected_subject": "wolf",
+    "note": "The inverse of the fox case — should not surface a fox image."
+  },
+  {
+    "post_slug": "why-dogs-are-mans-best-friend",
+    "expected_subject": "dog",
+    "note": null
+  },
+  {
+    "post_slug": "brown-bears-before-hibernation",
+    "expected_subject": "bear",
+    "note": null
+  },
+  {
+    "post_slug": "deer-in-the-morning-mist",
+    "expected_subject": "deer",
+    "note": null
+  },
+  {
+    "post_slug": "mountain-lakes-at-sunrise",
+    "expected_subject": null,
+    "note": "No landscape images exist in the corpus — correct behavior is 'no confident match', not a forced animal guess."
+  }
+]

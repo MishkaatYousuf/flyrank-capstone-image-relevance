@@ -9,9 +9,8 @@ Pillow>=10.0                # basic image validation (is it really an image?)
 
 # --- testing ---
 pytest>=8.0
+httpx>=0.27           # needed by FastAPI's TestClient
 
-# --- Phase 3/4 (not needed yet, listed here so the file matches the final
-#     capstone.yaml `run:`/`test:` commands later — safe to leave uninstalled
-#     until you reach those phases) ---
-# fastapi
-# uvicorn
+# --- Phase 4: Review API ---
+fastapi>=0.110
+uvicorn[standard]>=0.29

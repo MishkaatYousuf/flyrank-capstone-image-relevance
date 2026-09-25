@@ -82,6 +82,16 @@ def _all_mentioned_subjects(post_text: str) -> set[str]:
     return found
 
 
+def canonical_subject(text: str) -> str | None:
+    """
+    Public wrapper around the subject-normalization logic, used by
+    scripts/eval.py to score a suggested image's subject against an eval
+    label (e.g. an image tagged "gray wolf" -> "wolf") without duplicating
+    the synonym table.
+    """
+    return _canonical_subject(text)
+
+
 @dataclass
 class GuardResult:
     approved: bool
